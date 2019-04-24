@@ -1698,6 +1698,7 @@ sub device_type {
         30803 => 'SNMP::Info::Layer3::VyOS',
 	44641 => 'SNMP::Info::Layer3::VyOS',
         40310 => 'SNMP::Info::Layer3::Cumulus',
+        25053 => 'SNMP::Info::Layer3::Ruckus',
     );
 
     my %l2sysoidmap = (
@@ -2017,6 +2018,9 @@ sub device_type {
 
         $objtype = 'SNMP::Info::Layer2::ZyXEL_DSLAM'
             if ( $desc =~ /8-port .DSL Module\(Annex .\)/i );
+
+        $objtype = 'SNMP::Info::Layer3::Ruckus'
+            if ( $desc =~ /Ruckus Wireless ZD\(\d+\)/i );
 
         # Generic device classification based upon sysObjectID
         if (    ( $objtype eq 'SNMP::Info::Layer2' )
