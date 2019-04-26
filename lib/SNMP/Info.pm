@@ -1891,10 +1891,8 @@ sub device_type {
             $desc =~ /^(Nortel\s)??Wireless\sSecurity\sSwitch\s23[568][012]\b/);
 
         $objtype = 'SNMP::Info::Layer3::Ruckus::Zd'
-            if ( $desc =~ /Ruckus Wireless ZD(\d+)/i );
+            if ( $desc =~ /Ruckus Wireless ZD[\d]+/i );
 
-        $objtype = 'SNMP::Info::Layer3::Ruckus::Ap'
-            if ( defined($id) && $id =~ /(\d+).3.1.4.12$/ );
 
         # Generic device classification based upon sysObjectID
         if (    ( $objtype eq 'SNMP::Info::Layer3' )
@@ -2096,6 +2094,9 @@ sub device_type {
         $objtype = 'SNMP::Info::Layer7::CiscoIPS'
             if ( $soid =~ /\.1\.3\.6\.1\.4\.1\.9\.1\.1545/i );
 
+        $objtype = 'SNMP::Info::Layer3::Ruckus::Ap'
+            if ( $info->id() =~ /.3.1.4.12$/i );
+
         # Generic device classification based upon sysObjectID
         if ( defined($id) and $objtype eq 'SNMP::Info') {
             if ( defined $l3sysoidmap{$id} ) {
@@ -2108,6 +2109,9 @@ sub device_type {
                 $objtype = 'SNMP::Info::Layer7'
             }
         }
+    }
+    if ($info->debug()) {
+        print "SNMP::Info::device_type() objtype=$objtype\n";
     }
 
     return $objtype;
