@@ -53,6 +53,9 @@ $VERSION = '3.67';
     %SNMP::Info::Layer3::GLOBALS,
     %SNMP::Info::LLDP::GLOBALS,
     'ruckus_serial' => 'ruckusZDSystemSerialNumber',
+    'ruckus_model' => 'ruckusZDSystemModel',
+    'ruckus_version' => 'ruckusZDSystemVersion',
+    'ruckus_vendor' => 'ruckusZDSystemManufacturer',
 );
 
 %FUNCS = (
@@ -85,40 +88,24 @@ sub v_name {
 }
 
 
-sub vendor {
-    my $ruckus  = shift;
-    my $id     = $ruckus->id() || 'undef';
-    my %oidmap = ( 25053 => 'ruckus', );
-    $id = $1 if ( defined($id) && $id =~ /^\.1\.3\.6\.1\.4\.1\.(\d+)/ );
-
-    if ( defined($id) and exists( $oidmap{$id} ) ) {
-	return $oidmap{$id};
-    }
-    else {
-	return 'ruckus';
-    }
-}
 
 sub os_ver {
     my $ruckus = shift;
-    my $descr = $ruckus->description();
-    return unless defined $descr;
 
-    if ( $descr =~ m/Version\s+(\d+\.\d+\.\d+\.\d+)/ ) {
-	return $1;
-    }
-
-    return;
+    return $ruckus->ruckus_version();
 }
+  
+sub vendor {
+    my $ruckus = shift;
+
+    return $ruckus->ruckus_vendor();
+}
+  
 
 sub model {
     my $ruckus = shift;
-    my $id    = $ruckus->id();
-    return unless defined $id;
-    my $model = &SNMP::translateObj($id);
-    return $id unless defined $model;
 
-    return $model;
+    return $ruckus->ruckus_model();
 }
 
 
