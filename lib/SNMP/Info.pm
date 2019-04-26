@@ -1890,6 +1890,12 @@ sub device_type {
             if (
             $desc =~ /^(Nortel\s)??Wireless\sSecurity\sSwitch\s23[568][012]\b/);
 
+        $objtype = 'SNMP::Info::Layer3::Ruckus::Zd'
+            if ( $desc =~ /Ruckus Wireless ZD(\d+)/i );
+
+        $objtype = 'SNMP::Info::Layer3::Ruckus::Ap'
+            if ( defined($id) && $id =~ /(\d+).3.1.4.12$/ );
+
         # Generic device classification based upon sysObjectID
         if (    ( $objtype eq 'SNMP::Info::Layer3' )
             and ( defined($id) )
@@ -2019,8 +2025,6 @@ sub device_type {
         $objtype = 'SNMP::Info::Layer2::ZyXEL_DSLAM'
             if ( $desc =~ /8-port .DSL Module\(Annex .\)/i );
 
-        $objtype = 'SNMP::Info::Layer3::Ruckus'
-            if ( $desc =~ /Ruckus Wireless ZD\(\d+\)/i );
 
         # Generic device classification based upon sysObjectID
         if (    ( $objtype eq 'SNMP::Info::Layer2' )
