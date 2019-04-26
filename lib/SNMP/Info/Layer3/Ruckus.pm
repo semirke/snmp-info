@@ -45,6 +45,8 @@ $VERSION = '3.67';
 %MIBS = (
     %SNMP::Info::Layer3::MIBS,
     %SNMP::Info::LLDP::MIBS,
+    "RUCKUS-ZD-SYSTEM-MIB" => "ruckusZDSystemSerialNumber",
+    
 );
 
 %GLOBALS = (
@@ -55,7 +57,7 @@ $VERSION = '3.67';
 %FUNCS = (
     %SNMP::Info::Layer3::FUNCS,
     %SNMP::Info::LLDP::FUNCS,
-
+    'ruckuse_serial' => 'ruckusZDSystemSerialNumber',
 );
 
 %MUNGE = (
@@ -72,8 +74,16 @@ sub os {
     my $ruckus = shift;
 #    my %osmap = ( 'alcatel-lucent' => 'aos-w', );
 #    return $osmap{ $ruckus->vendor() } || 'airos';
-    return "ruckusoks";
+    return "ruckusOS";
 }
+
+sub v_name {
+    my $ruckus = shift;
+    my $partial = shift;
+
+    return $ruckus->ruckus_v_name($partial);
+}
+
 
 sub vendor {
     my $ruckus  = shift;
@@ -109,6 +119,13 @@ sub model {
     return $id unless defined $model;
 
     return $model;
+}
+
+
+sub serial {
+    my $ruckus = shift;
+
+    return $ruckus->ruckus_serial();
 }
 
 
