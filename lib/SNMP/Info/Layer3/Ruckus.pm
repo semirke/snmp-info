@@ -52,12 +52,12 @@ $VERSION = '3.67';
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
     %SNMP::Info::LLDP::GLOBALS,
+    'ruckuse_serial' => 'ruckusZDSystemSerialNumber',
 );
 
 %FUNCS = (
     %SNMP::Info::Layer3::FUNCS,
     %SNMP::Info::LLDP::FUNCS,
-    'ruckuse_serial' => 'ruckusZDSystemSerialNumber',
 );
 
 %MUNGE = (
