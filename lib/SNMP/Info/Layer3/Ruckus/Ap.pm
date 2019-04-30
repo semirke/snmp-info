@@ -1,4 +1,4 @@
-# SNMP::Info::Layer3::Ruckus
+# SNMP::Info::Layer3::Ruckus::Ap
 # $Id$
 #
 # Copyright (c) 2013 Eric Miller
@@ -28,15 +28,15 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::Ruckus;
+package SNMP::Info::Layer3::Ruckus::Ap;
 
 use strict;
 use Exporter;
-use SNMP::Info::Layer3;
+use SNMP::Info::Layer3::Ruckus;
 use SNMP::Info::LLDP;
 
-@SNMP::Info::Layer3::Ruckus::ISA       = qw/SNMP::Info::LLDP SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::Ruckus::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::Ruckus::Ap::ISA       = qw/SNMP::Info::LLDP SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::Ruckus::Ap::EXPORT_OK = qw//;
 
 our ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE);
 
@@ -45,17 +45,17 @@ $VERSION = '3.67';
 %MIBS = (
     %SNMP::Info::Layer3::MIBS,
     %SNMP::Info::LLDP::MIBS,
-    "RUCKUS-ZD-SYSTEM-MIB" => "ruckusZDSystemSerialNumber",
+    "RUCKUS-HWINFO-MIB" => "ruckusHwInfoModelNumber",
+    "RUCKUS-SWINFO-MIB" => "ruckusSwRevision",
     
 );
 
 %GLOBALS = (
     %SNMP::Info::Layer3::GLOBALS,
     %SNMP::Info::LLDP::GLOBALS,
-    'ruckus_serial' => 'ruckusZDSystemSerialNumber',
-    'ruckus_model' => 'ruckusZDSystemModel',
-    'ruckus_version' => 'ruckusZDSystemVersion',
-    'ruckus_vendor' => 'ruckusZDSystemManufacturer',
+    'ruckus_ap_serial' => 'ruckusHwInfoSerialNumber',
+    'ruckus_ap_model' => 'ruckusHwInfoModelNumber',
+    'ruckus_ap_version' => 'ruckusSwRevision.1',
 );
 
 %FUNCS = (
@@ -84,7 +84,7 @@ sub v_name {
     my $ruckus = shift;
     my $partial = shift;
 
-    return $ruckus->ruckus_v_name($partial);
+    return $ruckus->ruckus_ap_v_name($partial);
 }
 
 
@@ -92,27 +92,26 @@ sub v_name {
 sub os_ver {
     my $ruckus = shift;
 
-    return $ruckus->ruckus_version();
+    return $ruckus->ruckus_ap_version();
 }
   
 sub vendor {
     my $ruckus = shift;
-
-    return $ruckus->ruckus_vendor();
+    return "Ruckus Wireless";
 }
   
 
 sub model {
     my $ruckus = shift;
 
-    return $ruckus->ruckus_model();
+    return $ruckus->ruckus_ap_model();
 }
 
 
 sub serial {
     my $ruckus = shift;
 
-    return $ruckus->ruckus_serial();
+    return $ruckus->ruckus_ap_serial();
 }
 
 

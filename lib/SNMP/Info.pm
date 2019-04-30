@@ -1698,7 +1698,7 @@ sub device_type {
         30803 => 'SNMP::Info::Layer3::VyOS',
 	44641 => 'SNMP::Info::Layer3::VyOS',
         40310 => 'SNMP::Info::Layer3::Cumulus',
-        25053 => 'SNMP::Info::Layer3::Ruckus',
+#        25053 => 'SNMP::Info::Layer3::Ruckus',
     );
 
     my %l2sysoidmap = (
@@ -1890,8 +1890,6 @@ sub device_type {
             if (
             $desc =~ /^(Nortel\s)??Wireless\sSecurity\sSwitch\s23[568][012]\b/);
 
-        $objtype = 'SNMP::Info::Layer3::Ruckus::Zd'
-            if ( $desc =~ /Ruckus Wireless ZD[\d]+/i );
 
 
         # Generic device classification based upon sysObjectID
@@ -2096,6 +2094,10 @@ sub device_type {
 
         $objtype = 'SNMP::Info::Layer3::Ruckus::Ap'
             if ( $info->id() =~ /.3.1.4.12$/i );
+
+        $objtype = 'SNMP::Info::Layer3::Ruckus::Zd'
+            if ( $desc =~ /Ruckus Wireless ZD/i );
+
 
         # Generic device classification based upon sysObjectID
         if ( defined($id) and $objtype eq 'SNMP::Info') {

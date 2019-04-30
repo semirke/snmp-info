@@ -35,7 +35,7 @@ use Exporter;
 use SNMP::Info::Layer3;
 use SNMP::Info::LLDP;
 
-@SNMP::Info::Layer3::Ruckus::ISA       = qw/SNMP::Info::LLDP SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::Ruckus::ISA       = qw/SNMP::Info::LLDP SNMP::Info::Layer3 Exporter/; 
 @SNMP::Info::Layer3::Ruckus::EXPORT_OK = qw//;
 
 our ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE);

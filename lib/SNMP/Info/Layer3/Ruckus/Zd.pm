@@ -1,4 +1,4 @@
-# SNMP::Info::Layer3::Ruckus
+# SNMP::Info::Layer3::Ruckus::Zd
 # $Id$
 #
 # Copyright (c) 2013 Eric Miller
@@ -28,15 +28,14 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-package SNMP::Info::Layer3::Ruckus;
+package SNMP::Info::Layer3::Ruckus::Zd;
 
 use strict;
 use Exporter;
-use SNMP::Info::Layer3;
-use SNMP::Info::LLDP;
+use SNMP::Info::Layer3::Ruckus;
 
-@SNMP::Info::Layer3::Ruckus::ISA       = qw/SNMP::Info::LLDP SNMP::Info::Layer3 Exporter/;
-@SNMP::Info::Layer3::Ruckus::EXPORT_OK = qw//;
+@SNMP::Info::Layer3::Ruckus::Zd::ISA       = qw/SNMP::Info::LLDP SNMP::Info::Layer3 Exporter/;
+@SNMP::Info::Layer3::Ruckus::Zd::EXPORT_OK = qw//;
 
 our ($VERSION, %FUNCS, %GLOBALS, %MIBS, %MUNGE);
 
