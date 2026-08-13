@@ -175,17 +175,24 @@ sub lldp_if {
 }
 
 sub lldp_ip {
+    warn "PATCHED lldp_ip called from $INC{'SNMP/Info/LLDP.pm'}\n";
     my $lldp    = shift;
     my $partial = shift;
 
     my $rman_addr = $lldp->lldp_rman_addr($partial) || {};
+    my $idx_map   = $lldp->_lldp_short_to_full_index_map($partial);
 
     my %lldp_ip;
     foreach my $key ( keys %$rman_addr ) {
         my ( $index, $proto, $addr ) = $lldp->_lldp_addr_index($key);
         next unless defined $index;
         next unless $proto == 1;
-        $lldp_ip{$index} = $addr;
+
+        # c_ip() is IPv4-only
+        next unless defined $addr && $addr =~ /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+        my $full_index = $idx_map->{$index} || $index;
+        $lldp_ip{$full_index} = $addr;
     }
     return \%lldp_ip;
 }
@@ -195,13 +202,16 @@ sub lldp_ipv6 {
     my $partial = shift;
 
     my $rman_addr = $lldp->lldp_rman_addr($partial) || {};
+    my $idx_map   = $lldp->_lldp_short_to_full_index_map($partial);
 
     my %lldp_ipv6;
     foreach my $key ( keys %$rman_addr ) {
         my ( $index, $proto, $addr ) = $lldp->_lldp_addr_index($key);
         next unless defined $index;
         next unless $proto == 2;
-        $lldp_ipv6{$index} = $addr;
+
+        my $full_index = $idx_map->{$index} || $index;
+        $lldp_ipv6{$full_index} = $addr;
     }
     return \%lldp_ipv6;
 }
@@ -211,15 +221,18 @@ sub lldp_mac {
     my $partial = shift;
 
     my $rman_addr = $lldp->lldp_rman_addr($partial) || {};
+    my $idx_map   = $lldp->_lldp_short_to_full_index_map($partial);
 
-    my %lldp_ipv6;
+    my %lldp_mac;
     foreach my $key ( keys %$rman_addr ) {
         my ( $index, $proto, $addr ) = $lldp->_lldp_addr_index($key);
         next unless defined $index;
         next unless $proto == 6;
-        $lldp_ipv6{$index} = $addr;
+
+        my $full_index = $idx_map->{$index} || $index;
+        $lldp_mac{$full_index} = $addr;
     }
-    return \%lldp_ipv6;
+    return \%lldp_mac;
 }
 
 sub lldp_addr {
@@ -227,14 +240,17 @@ sub lldp_addr {
     my $partial = shift;
 
     my $rman_addr = $lldp->lldp_rman_addr($partial) || {};
+    my $idx_map   = $lldp->_lldp_short_to_full_index_map($partial);
 
-    my %lldp_ip;
+    my %lldp_addr;
     foreach my $key ( keys %$rman_addr ) {
         my ( $index, $proto, $addr ) = $lldp->_lldp_addr_index($key);
         next unless defined $index;
-        $lldp_ip{$index} = $addr;
+
+        my $full_index = $idx_map->{$index} || $index;
+        $lldp_addr{$full_index} = $addr;
     }
-    return \%lldp_ip;
+    return \%lldp_addr;
 }
 
 sub lldp_port {
@@ -435,6 +451,37 @@ sub lldp_media_cap {
 #    return;
 #}
 
+sub _lldp_short_to_full_index_map {
+    my $lldp    = shift;
+    my $partial = shift;
+
+    my $rem_pid = $lldp->lldp_rem_pid($partial) || {};
+    my %map;
+
+    foreach my $full_idx ( keys %$rem_pid ) {
+        my @o = split( /\./, $full_idx );
+        next unless scalar @o >= 3;
+
+        # full LLDP neighbor key is timemark.localPort.remIndex
+        my $short = join( '.', $o[1], $o[2] );
+
+        # keep highest timemark if duplicates exist
+        if ( not exists $map{$short} ) {
+            $map{$short} = $full_idx;
+            next;
+        }
+
+        my ($old_tm) = split(/\./, $map{$short});
+        my ($new_tm) = split(/\./, $full_idx);
+
+        if ( defined $new_tm && defined $old_tm && $new_tm > $old_tm ) {
+            $map{$short} = $full_idx;
+        }
+    }
+
+    return \%map;
+}
+
 # Break up the lldpRemManAddrTable INDEX into common index, protocol,
 # and address.
 sub _lldp_addr_index {
@@ -442,33 +489,65 @@ sub _lldp_addr_index {
     my $idx  = shift;
 
     my @oids = split( /\./, $idx );
-    my $index = join( '.', splice( @oids, 0, 3 ) );
-    my $proto = shift(@oids);
-    shift(@oids) if scalar @oids > 4;    # $length
+    return unless scalar @oids >= 4;
+
+    my ( $index, $proto, @addr_oids );
+
+    # Try standard LLDP-MIB key shape first:
+    # timemark.localPort.remIndex.addrSubtype.addrLen.addr...
+    if ( scalar @oids >= 6 ) {
+        my @t = @oids;
+        my $std_index = join( '.', splice( @t, 0, 3 ) );
+        my $std_proto = shift @t;
+        my $std_len   = shift @t;
+
+        if ( defined $std_proto
+            && $std_proto =~ /^(1|2|6)$/
+            && defined $std_len
+            && scalar(@t) >= $std_len )
+        {
+            @t = @t[ 0 .. $std_len - 1 ] if $std_len > 0;
+            ( $index, $proto, @addr_oids ) = ( $std_index, $std_proto, @t );
+        }
+    }
+
+    # Fallback for devices that omit timemark in manAddr index:
+    # localPort.remIndex.addrSubtype.addrLen.addr...
+    if ( !defined $proto && scalar @oids >= 5 ) {
+        my @t = @oids;
+        my $short_index = join( '.', splice( @t, 0, 2 ) );
+        my $short_proto = shift @t;
+        my $short_len   = shift @t;
+
+        return unless defined $short_proto && $short_proto =~ /^(1|2|6)$/;
+        return unless defined $short_len && scalar(@t) >= $short_len;
+
+        @t = @t[ 0 .. $short_len - 1 ] if $short_len > 0;
+        ( $index, $proto, @addr_oids ) = ( $short_index, $short_proto, @t );
+    }
+
+    return unless defined $index && defined $proto;
 
     # IPv4
     if ( $proto == 1 ) {
-        return ( $index, $proto, join( '.', @oids ) );
+        return unless scalar(@addr_oids) == 4;
+        return ( $index, $proto, join( '.', @addr_oids ) );
     }
 
     # IPv6
     elsif ( $proto == 2 ) {
         return ( $index, $proto,
-            join( ':', unpack( '(H4)*', pack( 'C*', @oids ) ) ) );
+            join( ':', unpack( '(H4)*', pack( 'C*', @addr_oids ) ) ) );
     }
 
     # MAC
     elsif ( $proto == 6 ) {
         return ( $index, $proto,
-            join( ':', map { sprintf "%02x", $_ } @oids ) );
+            join( ':', map { sprintf "%02x", $_ } @addr_oids ) );
     }
 
-    # TODO - Other protocols may be used as well; implement when needed?
-    else {
-        return;
-    }
+    return;
 }
-
 1;
 __END__
 
