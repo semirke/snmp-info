@@ -3171,10 +3171,15 @@ sub _get_topo_data {
         my $cdp = $self->$method_name($partial) || {};
 
         foreach my $iid ( keys %$cdp ) {
-            my $ip = $cdp->{$iid};
-            next unless defined $ip;
+            my $val = $cdp->{$iid};
+            next unless defined $val;
 
-            $t_data{$iid} = $ip;
+            # c_ip() contract is IPv4; drop non-IPv4 values
+            if ( $method eq 'ip' ) {
+                next unless $val =~ /^\d{1,3}(?:\.\d{1,3}){3}$/;
+            }
+
+            $t_data{$iid} = $val;
         }
     }
     return \%t_data;
