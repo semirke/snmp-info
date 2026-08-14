@@ -175,7 +175,6 @@ sub lldp_if {
 }
 
 sub lldp_ip {
-    warn "PATCHED lldp_ip called from $INC{'SNMP/Info/LLDP.pm'}\n";
     my $lldp    = shift;
     my $partial = shift;
 
