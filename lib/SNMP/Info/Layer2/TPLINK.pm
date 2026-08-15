@@ -43,14 +43,13 @@ $VERSION = '3.975000';
 
 %GLOBALS = (
     %SNMP::Info::Layer2::GLOBALS,
+    # TP-Link system identity/version
+    'tp_hw_ver' => 'tpSysInfoHwVersion',
+    'tp_sw_ver' => 'tpSysInfoSwVersion',
 );
 
 %FUNCS = (
     %SNMP::Info::Layer2::FUNCS,
-
-    # TP-Link system identity/version
-    'tp_hw_ver' => 'tpSysInfoHwVersion',
-    'tp_sw_ver' => 'tpSysInfoSwVersion',
 
     # TP-Link VLAN (vendor dot1q mib)
     'tp_vlan_port_num' => 'vlanPortNumber',
@@ -82,26 +81,32 @@ sub os {
     return 'tplink';
 }
 
-sub os_ver {
-    my $tplink = shift;
-
-    my $sw = $tplink->tp_sw_ver();
-    return $sw if defined $sw and length $sw;
-
-    my $descr = $tplink->description() || '';
-    return $1 if $descr =~ /\b(?:firmware|software|version|ver)\s*[: ]\s*([0-9][0-9A-Za-z.\-_ ]+)/i;
-
-    return;
-}
-
 sub model {
     my $tplink = shift;
 
     my $hw = $tplink->tp_hw_ver();
-    return $hw if defined $hw and length $hw;
+    return $hw if defined $hw && length $hw;
+
+    my $m = eval { $tplink->SUPER::model() };
+    return $m if defined $m && length $m;
 
     my $descr = $tplink->description() || '';
     return $descr if length $descr;
+
+    return;
+}
+
+sub os_ver {
+    my $tplink = shift;
+
+    my $sw = $tplink->tp_sw_ver();
+    return $sw if defined $sw && length $sw;
+
+    my $ov = eval { $tplink->SUPER::os_ver() };
+    return $ov if defined $ov && length $ov;
+
+    my $descr = $tplink->description() || '';
+    return $1 if $descr =~ /\b(?:firmware|software|version|ver)\s*[: ]\s*([0-9][0-9A-Za-z.\-_ ]+)/i;
 
     return;
 }
@@ -135,32 +140,61 @@ sub mac {
 }
 
 # -- LLDP quirks -----------------------------------------------------------
-# Omada variants were observed returning lldpRemManAddr index without timeMark.
-# We normalize to full key (timeMark.localPort.remIndex) so c_ip aligns with c_if/c_port.
+# Omada variants may return lldpRemManAddr index without timeMark.
+# We attempt to normalize to full key (timeMark.localPort.remIndex) so c_ip
+# aligns with c_if/c_port. If unresolved, we skip that address row.
 
 sub _lldp_short_to_full_index_map {
-    my $tplink  = shift;
-    my $partial = shift;
-
-    my $rem_pid = $tplink->lldp_rem_pid($partial) || {};
+    my ($tplink, $partial) = @_;
     my %map;
 
-    foreach my $full_idx (keys %$rem_pid) {
-        my @o = split /\./, $full_idx;
-        next unless @o >= 3;
-        my $short = join '.', @o[1,2];
+    # Build map from whatever full-index LLDP rem tables are available.
+    # Keep newest timeMark for same short localPort.remIndex key.
+    my @methods = qw(
+        lldp_rem_pid
+        lldp_rem_sys
+        lldp_rem_pdesc
+        lldp_rem_port
+        lldp_rem_desc
+    );
 
-        if (!exists $map{$short}) {
-            $map{$short} = $full_idx;
-            next;
+    for my $m (@methods) {
+        next unless $tplink->can($m);
+        my $h = $tplink->$m($partial) || {};
+
+        for my $full_idx (keys %$h) {
+            my ($tm, $lp, $ri) = split /\./, $full_idx, 4;
+            next unless defined $tm && defined $lp && defined $ri;
+            next unless $tm =~ /^\d+$/ && $lp =~ /^\d+$/ && $ri =~ /^\d+$/;
+
+            my $short = "$lp.$ri";
+
+            if (!exists $map{$short}) {
+                $map{$short} = $full_idx;
+                next;
+            }
+
+            my ($old_tm) = split /\./, $map{$short}, 2;
+            $map{$short} = $full_idx if $tm > $old_tm;
         }
-
-        my ($old_tm) = split /\./, $map{$short};
-        my ($new_tm) = split /\./, $full_idx;
-        $map{$short} = $full_idx if defined $new_tm && defined $old_tm && $new_tm > $old_tm;
     }
 
     return \%map;
+}
+
+sub _lldp_normalize_index {
+    my ($tplink, $index, $idx_map) = @_;
+    return unless defined $index;
+
+    # already full: timeMark.localPort.remIndex
+    return $index if $index =~ /^\d+\.\d+\.\d+$/;
+
+    # short: localPort.remIndex
+    if ($index =~ /^\d+\.\d+$/) {
+        return $idx_map->{$index};
+    }
+
+    return;
 }
 
 sub _lldp_addr_index {
@@ -232,7 +266,10 @@ sub lldp_ip {
     foreach my $key (keys %$rman_addr) {
         my ($index, $proto, $addr) = $tplink->_lldp_addr_index($key);
         next unless defined $index && $proto == 1;
-        my $full = $idx_map->{$index} || $index;
+
+        my $full = $tplink->_lldp_normalize_index($index, $idx_map);
+        next unless defined $full;
+
         $lldp_ip{$full} = $addr;
     }
 
@@ -252,7 +289,10 @@ sub lldp_ipv6 {
     foreach my $key (keys %$rman_addr) {
         my ($index, $proto, $addr) = $tplink->_lldp_addr_index($key);
         next unless defined $index && $proto == 2;
-        my $full = $idx_map->{$index} || $index;
+
+        my $full = $tplink->_lldp_normalize_index($index, $idx_map);
+        next unless defined $full;
+
         $lldp_ipv6{$full} = $addr;
     }
 
@@ -272,7 +312,10 @@ sub lldp_mac {
     foreach my $key (keys %$rman_addr) {
         my ($index, $proto, $addr) = $tplink->_lldp_addr_index($key);
         next unless defined $index && $proto == 6;
-        my $full = $idx_map->{$index} || $index;
+
+        my $full = $tplink->_lldp_normalize_index($index, $idx_map);
+        next unless defined $full;
+
         $lldp_mac{$full} = $addr;
     }
 
@@ -292,7 +335,10 @@ sub lldp_addr {
     foreach my $key (keys %$rman_addr) {
         my ($index, $proto, $addr) = $tplink->_lldp_addr_index($key);
         next unless defined $index;
-        my $full = $idx_map->{$index} || $index;
+
+        my $full = $tplink->_lldp_normalize_index($index, $idx_map);
+        next unless defined $full;
+
         $lldp_addr{$full} = $addr;
     }
 
@@ -487,7 +533,7 @@ Robust base MAC resolution (SUPER -> BRIDGE-MIB -> interface MAC fallback).
 =item *
 
 LLDP remote management address index normalization for Omada variants that
-omit C<lldpRemTimeMark> in C<lldpRemManAddrTable> indexing.
+may omit C<lldpRemTimeMark> in C<lldpRemManAddrTable> indexing.
 
 =item *
 
