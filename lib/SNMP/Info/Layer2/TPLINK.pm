@@ -46,6 +46,13 @@ $VERSION = '3.975000';
     # TP-Link system identity/version
     'tp_hw_ver' => 'tpSysInfoHwVersion',
     'tp_sw_ver' => 'tpSysInfoSwVersion',
+    'tp_serial' => 'tpSysInfoSerialNum',
+    # TP-Link PSU
+    'tp_psu_capacity'       => 'powerSupplyUnitCapacity',
+    'tp_psu_remaining_time' => 'powerSupplyUnitRemainingTime',
+    'tp_psu_internal_power' => 'powerSupplyUnitInternalPower',
+    'tp_psu_external_power' => 'powerSupplyUnitExternalPower',
+
 );
 
 %FUNCS = (
@@ -66,6 +73,7 @@ $VERSION = '3.975000';
     # TP-Link/Omada
     'TPLINK-SYSINFO-MIB'    => 'tpSysInfoHwVersion',
     'TPLINK-DOT1Q-VLAN-MIB' => 'dot1qVlanId',
+    'TPLINK-POWERSUPPLYUNIT-MIB' => 'powerSupplyUnitCapacity',
 );
 
 %MUNGE = (
@@ -487,6 +495,154 @@ sub i_vlan_membership {
 
     return scalar(keys %out) ? \%out : $tplink->SUPER::i_vlan_membership($partial);
 }
+
+sub _localport_maps {
+    my $tplink = shift;
+
+    my %lp_to_iid;
+    my %lp_to_label;
+
+    my $pn = $tplink->tp_vlan_port_num() || {};   # ifIndex => "1/0/24"
+    foreach my $iid (keys %$pn) {
+        my $tok = _trim($pn->{$iid});
+        next unless length $tok;
+
+        if ($tok =~ m{(\d+)/(\d+)/(\d+)$}) {
+            my $lp = $3; # local port number
+            $lp_to_iid{$lp}   = $iid unless exists $lp_to_iid{$lp};
+            $lp_to_label{$lp} = $tok unless exists $lp_to_label{$lp};
+        }
+    }
+
+    return (\%lp_to_iid, \%lp_to_label);
+}
+
+sub c_if {
+    my $tplink  = shift;
+    my $partial = shift;
+
+    my $base = $tplink->SUPER::c_if($partial) || {};
+    return $base if scalar keys %$base;
+
+    my $cand = $tplink->lldp_ip($partial) || $tplink->lldp_addr($partial) || {};
+    return $base unless scalar keys %$cand;
+
+    my ($lp_to_iid) = $tplink->_localport_maps();
+    my %out;
+
+    foreach my $idx (keys %$cand) {
+        next unless $idx =~ /^(\d+)\.(\d+)$/;   # short IID only
+        my ($lp) = ($1);
+        my $iid = $lp_to_iid->{$lp};
+        next unless defined $iid;
+        $out{$idx} = $iid;
+    }
+
+    return scalar(keys %out) ? \%out : $base;
+}
+
+sub c_port {
+    my $tplink  = shift;
+    my $partial = shift;
+
+    my $base = $tplink->SUPER::c_port($partial) || {};
+    return $base if scalar keys %$base;
+
+    my $c_if = $tplink->c_if($partial) || {};
+    return $base unless scalar keys %$c_if;
+
+    my $i_name = $tplink->i_name() || {};
+    my (undef, $lp_to_label) = $tplink->_localport_maps();
+
+    my %out;
+    foreach my $idx (keys %$c_if) {
+        my $iid = $c_if->{$idx};
+        my $name = $i_name->{$iid};
+
+        if (!defined $name || $name eq '') {
+            if ($idx =~ /^(\d+)\./) {
+                my $lp = $1;
+                $name = $lp_to_label->{$lp} || "port $lp";
+            }
+        }
+
+        $out{$idx} = $name if defined $name && $name ne '';
+    }
+
+    return scalar(keys %out) ? \%out : $base;
+}
+
+sub serial {
+    my $tplink = shift;
+
+    my $s = $tplink->tp_serial();
+    return $s if defined $s && length $s;
+
+    my $sup = eval { $tplink->SUPER::serial() };
+    return $sup if defined $sup && length $sup;
+
+    return;
+}
+
+sub psu_capacity {
+    my $tplink = shift;
+    my $v = $tplink->tp_psu_capacity();
+    return unless defined $v && $v =~ /^\d+$/;
+    return int($v);
+}
+
+sub psu_remaining_minutes {
+    my $tplink = shift;
+    my $v = $tplink->tp_psu_remaining_time();
+    return unless defined $v && $v =~ /^\d+$/;
+    return int($v);
+}
+
+sub psu_internal_power_status {
+    my $tplink = shift;
+    my $v = $tplink->tp_psu_internal_power();
+    return unless defined $v;
+    $v = _trim($v);
+    return length($v) ? $v : undef;
+}
+
+sub psu_external_power_status {
+    my $tplink = shift;
+    my $v = $tplink->tp_psu_external_power();
+    return unless defined $v;
+    $v = _trim($v);
+    return length($v) ? $v : undef;
+}
+
+sub ps1 {
+    my $tplink = shift;
+
+    my $v = $tplink->tp_psu_internal_power();
+    if (defined $v) {
+        $v = _trim($v);
+        return $v if length $v;
+    }
+
+    return eval { $tplink->SUPER::ps1() };
+}
+
+sub ps2 {
+    my $tplink = shift;
+
+    my $v = $tplink->tp_psu_external_power();
+    if (defined $v) {
+        $v = _trim($v);
+        return $v if length $v;
+    }
+
+    return eval { $tplink->SUPER::ps2() };
+}
+
+sub fan {
+    my $tplink = shift;
+    return eval { $tplink->SUPER::fan() };   # until you find TP-Link fan OID
+}
+
 
 1;
 
