@@ -1148,6 +1148,12 @@ Alcatel-Lucent SR Class.
 
 See documentation in L<SNMP::Info::Layer3::Timetra> for details.
 
+=item SNMP::Info::Layer2::TPLINK
+
+Subclass for TPLINK Omada devices
+
+See documentation in L<SNMP::Info::Layer2::TPLINK> for details.
+
 =item SNMP::Info::Layer3::VyOS
 
 Subclass for VyOS routers.
@@ -1895,6 +1901,7 @@ sub device_type {
         6486  => 'SNMP::Info::Layer3::AlcatelLucent',
         9303  => 'SNMP::Info::Layer3::PacketFront',
         10418 => 'SNMP::Info::Layer1::Cyclades',
+        11863 => 'SNMP::Info::Layer2::TPLINK',
         11898 => 'SNMP::Info::Layer2::Orinoco',
         13458 => 'SNMP::Info::Layer2::Atmedia',
         14179 => 'SNMP::Info::Layer2::Airespace',
